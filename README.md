@@ -1,0 +1,1 @@
+Little scheduler to handle images from bot and post it automatically to Telegram channel.
