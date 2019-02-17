@@ -1,76 +1,53 @@
+const NodeSchedule = require('node-schedule');
 const Component = require('./Component');
 
 module.exports = class Scheduler extends Component {
 
 	init() {
-		this.activeTimeout = null;
-		this.queue = [];
-		this.ioc.Storage.setUpdateId(this.config.lastUpdate);
-		//this.doPost();
+		this.singleJob = NodeSchedule.scheduleJob('30 7-23, * * *', this.doPost.bind(this));
+		this.albumJob = NodeSchedule.scheduleJob('10 6 */1 * *', this.doAlbum.bind(this));
 	}
 
-	async parseUpdates() {
-		const upId = await this.ioc.Storage.getUpdateId();
-		const result = await this.ioc.Telegram.getUpdates(upId);
-		const queue = [];
+	async getStat() {
+		return `
+			Unposted photos: ${await this.ioc.Storage.getUnpostedCount()}\n
+			Next single post: ${this.singleJob.nextInvocation().toString()}\n
+			Next album post: ${this.albumJob.nextInvocation().toString()}\n
+		`;
+	}
 
-		for (const { update_id, message } of result) {
-			if (message && Array.isArray(message.photo)) {
-				const { file } = message.photo.reduce((acc, { file_id, file_size }) => {
-					if (file_size > acc.max) {
-						return { file: file_id, max: file_size };
-					}
-					return acc;
-				}, { max: 0, file: null });
+    async doAlbum() {
+    	const photos = await this.ioc.Storage.getNextPhotos(5);
+    	const postedIds = [];
 
-				queue.push({
-					update_id,
-					file,
-					author: message.chat.username,
-					source: message.forward_from_chat && message.forward_from_chat.username,
-					date: new Date(message.forward_date * 1000).toLocaleString(),
-				});
-			}
+		await this.ioc.Telegram.sendMediaGroup(photos.map(({ file_id }) => file_id));
+		for (const { update_id } of photos) {
+			await this.ioc.Storage.setPosted(update_id);
+			postedIds.push(update_id);
 		}
-		if (queue.length) {
-			this.log('UPDATES', `${queue.length} messages from update_id ${update_id}`);
+		this.log('POSTED', `album ${JSON.stringify(postedIds)}`);
+		await this.lackUpdatesNotify();
+    }
+
+	async doPost() {
+		const [msg] = await this.ioc.Storage.getNextPhotos();
+
+		if (!msg) {
+			return this.log('EMPTY', 'No photos to post!');
 		}
-		if (queue.length < this.config.notify.onCount) {
-			await this.lackUpdatesNotify(queue.length);
+		await this.ioc.Telegram.sendPhoto(msg.file_id);
+		await this.ioc.Storage.setPosted(msg.update_id);
+		this.log('POSTED', `update_id ${msg.update_id} file_id ${msg.file_id}`);
+		await this.lackUpdatesNotify();
+	}
+
+	async lackUpdatesNotify() {
+		const remains = await this.ioc.Storage.getUnpostedCount();
+
+		if (remains > this.config.notify.onCount) {
+			return;
 		}
 
-		return queue;
-	}
-
-	postImmediate() {
-		clearTimeout(this.activeTimeout);
-		this.doPost(2);
-	}
-
-	getNextTimeout() {
-		return parseInt(Math.random()*300000) + 3600000;
-	}
-
-	doPost(timeout) {
-		const t = timeout || this.getNextTimeout();
-
-		this.activeTimeout = setTimeout(async () => {
-			const msg = this.queue.shift();
-
-			if (msg) {
-				await this.ioc.Telegram.sendPhoto(msg.file);
-				this.log('POSTED', `update_id ${msg.update_id} file_id ${msg.file}`);
-				await this.ioc.Storage.setUpdateId(msg.update_id + 1);
-			} else {
-				clearTimeout(this.activeTimeout);
-				this.queue = await this.parseUpdates();
-			}
-			this.doPost();
-		}, t);
-		this.log('NEXT', `${parseInt(t/60000)} minutes`);
-	}
-
-	async lackUpdatesNotify(remains) {
 		const { usersToNotify } = this.config.notify;
 		const promises = usersToNotify.map(async user => this.ioc.Telegram.sendMessage(
 			`There is only ${remains} updates in queue!`,

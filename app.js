@@ -1,12 +1,16 @@
+const fs = require('fs');
+
 class App {
 
 	constructor() {
 		this.config = require('./config');
+        this.logStream = fs.createWriteStream(this.config.logFile, { flags:'a' });
+ 
 		this.ioc = [
-			'Telegram',
 			'Storage',
-			'WebServer',
+			'Telegram',
 			'Scheduler',
+			'WebServer',
 		].reduce((ioc, comp) => {
 			const Class = require(`./components/${comp}`);
 			ioc[comp] = new Class(this);

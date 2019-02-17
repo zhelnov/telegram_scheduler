@@ -5,7 +5,11 @@ module.exports = class Component {
 	}
 
 	log(type, message) {
-		console.log(`[${type}] ${message}`);
+        const now = new Date().toJSON();
+        const msg =`${now} [${type}] ${message}`;
+ 
+		console.log(msg);
+        this.container.logStream.write(`${msg}\n`);
 	}
 
 	get ioc() {
