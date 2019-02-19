@@ -15,12 +15,35 @@ module.exports = class Telegram extends Component {
 		const updates = await this.getUpdates(Number(lastUpdateId) + 1);
 		const count = updates.length;
 
-		lastUpdateId = updates[count - 1].update_id;
-		await this.ioc.Storage.setVar('lastUpdateId', lastUpdateId);
+		if (count) {
+			const [{ update_id: start }] = updates;
+			lastUpdateId = updates[count - 1].update_id;
+			await this.ioc.Storage.setVar('lastUpdateId', lastUpdateId);
+			this.log('UPDATES', `${count} updates, update_id:[${start},${lastUpdateId}]`);
+		}
 
 		for (const update of updates) {
-            const { update_id, message } = update;
+            const { update_id, message, callback_query } = update;
 
+            if (callback_query) {
+            	const {
+            		from: { id: user_id, username },
+            		message: { message_id },
+            		data: reaction,
+            	} = callback_query;
+
+            	await this.ioc.Storage.setReaction({
+            		update_id, message_id, reaction, username, user_id,
+            	});
+
+            	const { like, dislike } = await this.ioc.Storage.getReactions(message_id);
+            	const { ok, description } = await this.updateReactions(message_id, like, dislike);
+
+            	if (!ok) {
+            		this.log('TELEGRAM ERROR', description);
+            	}
+
+            }
             if (!message) {
             	continue;
             }
@@ -35,7 +58,7 @@ module.exports = class Telegram extends Component {
 	                file_id: file,
 	                poster: message.chat.username,
 	                source: message.forward_from_chat && message.forward_from_chat.username,
-	                date: message.forward_date,
+	                date: message.date,
 	            };
 	            const saveResult = await this.ioc.Storage.saveUpdate(dbPayload);
 	            
@@ -43,11 +66,6 @@ module.exports = class Telegram extends Component {
 	                this.log('UPDATE SAVE ERROR', JSON.stringify(dbPayload));
 	            }
             }
-		}
-
-		if (count) {
-        	const [{ update_id: start }] = updates;
-			this.log('UPDATES', `${count} updates, update_id:[${start},${lastUpdateId}]`);
 		}
 
 		return this.runPolling();
@@ -79,14 +97,48 @@ module.exports = class Telegram extends Component {
         }, { max: 0, file: null }).file;
     }
 
-	async apiRequest({ apiMethod, ...options }) {
-		const response = await rp({
-			url: `${this.apiUrl}/${this.botToken}/${apiMethod}`,
-			method: 'POST',
-			...options,
+    getReactionLayout(likes, dislikes) {
+    	return JSON.stringify({
+			inline_keyboard: [[
+				{
+					text: `\uD83D\uDC4D лойс ${likes || ''}`,
+					callback_data: 'like',
+				},
+				{
+					text: `\uD83D\uDC4E атписка ${dislikes || ''}`,
+					callback_data: 'dislike',
+				}
+			]]
 		});
+    }
 
-		return JSON.parse(response);
+	async apiRequest({ apiMethod, ...options }) {
+		try {
+			const response = await rp({
+				url: `${this.apiUrl}/${this.botToken}/${apiMethod}`,
+				method: 'POST',
+				...options,
+			});
+
+			return JSON.parse(response);
+		} catch (error) {
+			this.log('TELEGRAM API ERROR', error);
+			return {
+				ok: false,
+				description: error,
+			};
+		}
+	}
+
+	async updateReactions(message_id, likes, dislikes) {
+		return this.apiRequest({
+			apiMethod: 'editMessageReplyMarkup',
+			formData: {
+				chat_id: this.chatId,
+				message_id,
+				reply_markup: this.getReactionLayout(likes, dislikes),
+			},
+		});
 	}
 
 	async sendVideo(url) {
@@ -99,12 +151,12 @@ module.exports = class Telegram extends Component {
 		});
 	}
 
-	async sendPhoto(file_id) {
+	async sendPhoto(params) {
 		return this.apiRequest({
 			apiMethod: 'sendPhoto',
 			formData: {
 				chat_id: this.chatId,
-				photo: file_id,
+				...params,
 			},
 		});
 	}

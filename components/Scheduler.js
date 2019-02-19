@@ -20,13 +20,20 @@ module.exports = class Scheduler extends Component {
     	const photos = await this.ioc.Storage.getNextPhotos(5);
     	const postedIds = [];
 
-		await this.ioc.Telegram.sendMediaGroup(photos.map(({ file_id }) => file_id));
-		for (const { update_id } of photos) {
-			await this.ioc.Storage.setPosted(update_id);
-			postedIds.push(update_id);
+		const { ok, result, description } = await this.ioc.Telegram.sendMediaGroup(
+			photos.map(({ file_id }) => file_id),
+		);
+
+		if (ok) {
+			for (const { update_id } of photos) {
+				await this.ioc.Storage.setPosted(update_id, result.message_id);
+				postedIds.push(update_id);
+			}
+			this.log('POSTED', `album ${JSON.stringify(postedIds)}`);
+			await this.lackUpdatesNotify();
+		} else {
+			this.log('POSTING ERROR', `album ${JSON.stringify(postedIds)} error ${description}`);
 		}
-		this.log('POSTED', `album ${JSON.stringify(postedIds)}`);
-		await this.lackUpdatesNotify();
     }
 
 	async doPost() {
@@ -35,10 +42,19 @@ module.exports = class Scheduler extends Component {
 		if (!msg) {
 			return this.log('EMPTY', 'No photos to post!');
 		}
-		await this.ioc.Telegram.sendPhoto(msg.file_id);
-		await this.ioc.Storage.setPosted(msg.update_id);
-		this.log('POSTED', `update_id ${msg.update_id} file_id ${msg.file_id}`);
-		await this.lackUpdatesNotify();
+
+		const { ok, result, description } = await this.ioc.Telegram.sendPhoto({
+			photo: msg.file_id,
+			reply_markup: this.ioc.Telegram.getReactionLayout(),
+		});
+
+		if (ok) {
+			await this.ioc.Storage.setPosted(msg.update_id, result.message_id);
+			this.log('POSTED', `update_id ${msg.update_id} file_id ${msg.file_id}`);
+			await this.lackUpdatesNotify();
+		} else {
+			this.log('POSTING ERROR', `update_id ${msg.update_id} error ${description}`);
+		}
 	}
 
 	async lackUpdatesNotify() {
