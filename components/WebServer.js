@@ -13,7 +13,7 @@ module.exports = class WebServer extends Component {
 		app.get('/', (req, res) => res.send('ok'));
 		app.get('/img/:id', this.getImage.bind(this));
 
-		app.listen(port, ip, () => this.log('WEB', `${ip}:${port}`));
+		app.listen(port, ip, () => this.log('web', `${ip}:${port}`));
 
 		this.app = app;
 	}

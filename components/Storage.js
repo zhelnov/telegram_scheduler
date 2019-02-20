@@ -37,12 +37,15 @@ module.exports = class Storage extends Component {
     }
 
     async getNextPhotos(amount) {
-        return this.query(Knex('updates')
+        const baseQuery = Knex('updates')
             .select('update_id', 'file_id')
-            .where({ is_posted: false })
-            .limit(amount || 1)
-            .orderBy('update_id')
-        );
+            .where({ is_posted: false });
+
+        if (!amount) {
+            return this.query(baseQuery.limit(1));
+        }
+
+        return this.query(baseQuery.limit(amount).orderBy('update_id', 'desc'));
     }
 
     async getUnpostedCount() {
@@ -99,11 +102,10 @@ module.exports = class Storage extends Component {
         try {
             const queryStr = knexQuery.toString();
             const result = await this.postgres.query(queryStr);
-            this.log('POSTGRES', queryStr.substr(0, 500));
             return result.rows;
         } catch (error) {
-            this.log('POSTGRES', error);
-            this.log('POSTGRES', knexQuery.toString());
+            this.log('postgres error', error);
+            this.log('postgres query', knexQuery.toString());
             return null;
         }
     }

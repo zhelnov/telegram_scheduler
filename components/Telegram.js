@@ -16,10 +16,8 @@ module.exports = class Telegram extends Component {
 		const count = updates.length;
 
 		if (count) {
-			const [{ update_id: start }] = updates;
 			lastUpdateId = updates[count - 1].update_id;
 			await this.ioc.Storage.setVar('lastUpdateId', lastUpdateId);
-			this.log('UPDATES', `${count} updates, update_id:[${start},${lastUpdateId}]`);
 		}
 
 		for (const update of updates) {
@@ -40,7 +38,7 @@ module.exports = class Telegram extends Component {
             	const { ok, description } = await this.updateReactions(message_id, like, dislike);
 
             	if (!ok) {
-            		this.log('TELEGRAM ERROR', description);
+            		this.log('telegram error', description);
             	}
 
             }
@@ -63,7 +61,7 @@ module.exports = class Telegram extends Component {
 	            const saveResult = await this.ioc.Storage.saveUpdate(dbPayload);
 	            
 	            if (!saveResult) {
-	                this.log('UPDATE SAVE ERROR', JSON.stringify(dbPayload));
+	                this.log('update save error', JSON.stringify(dbPayload));
 	            }
             }
 		}
@@ -122,7 +120,7 @@ module.exports = class Telegram extends Component {
 
 			return JSON.parse(response);
 		} catch (error) {
-			this.log('TELEGRAM API ERROR', error);
+			this.log('telegram api error', error);
 			return {
 				ok: false,
 				description: error,

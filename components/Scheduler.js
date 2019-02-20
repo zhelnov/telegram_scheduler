@@ -4,8 +4,8 @@ const Component = require('./Component');
 module.exports = class Scheduler extends Component {
 
 	init() {
-		this.singleJob = NodeSchedule.scheduleJob('30 7-23, * * *', this.doPost.bind(this));
-		this.albumJob = NodeSchedule.scheduleJob('10 6 */1 * *', this.doAlbum.bind(this));
+		this.singleJob = NodeSchedule.scheduleJob('25 9-23, * * *', this.doPost.bind(this));
+		this.albumJob = NodeSchedule.scheduleJob('5 8,12,16,20 */1 * *', this.doAlbum.bind(this));
 	}
 
 	async getStat() {
@@ -18,8 +18,6 @@ module.exports = class Scheduler extends Component {
 
     async doAlbum() {
     	const photos = await this.ioc.Storage.getNextPhotos(5);
-    	const postedIds = [];
-
 		const { ok, result, description } = await this.ioc.Telegram.sendMediaGroup(
 			photos.map(({ file_id }) => file_id),
 		);
@@ -27,12 +25,10 @@ module.exports = class Scheduler extends Component {
 		if (ok) {
 			for (const { update_id } of photos) {
 				await this.ioc.Storage.setPosted(update_id, result.message_id);
-				postedIds.push(update_id);
 			}
-			this.log('POSTED', `album ${JSON.stringify(postedIds)}`);
 			await this.lackUpdatesNotify();
 		} else {
-			this.log('POSTING ERROR', `album ${JSON.stringify(postedIds)} error ${description}`);
+			this.log('posting error', description);
 		}
     }
 
@@ -40,7 +36,7 @@ module.exports = class Scheduler extends Component {
 		const [msg] = await this.ioc.Storage.getNextPhotos();
 
 		if (!msg) {
-			return this.log('EMPTY', 'No photos to post!');
+			return this.log('empty', 'No photos to post!');
 		}
 
 		const { ok, result, description } = await this.ioc.Telegram.sendPhoto({
@@ -50,10 +46,9 @@ module.exports = class Scheduler extends Component {
 
 		if (ok) {
 			await this.ioc.Storage.setPosted(msg.update_id, result.message_id);
-			this.log('POSTED', `update_id ${msg.update_id} file_id ${msg.file_id}`);
 			await this.lackUpdatesNotify();
 		} else {
-			this.log('POSTING ERROR', `update_id ${msg.update_id} error ${description}`);
+			this.log('posting error', `update_id ${msg.update_id} error ${description}`);
 		}
 	}
 
@@ -70,7 +65,7 @@ module.exports = class Scheduler extends Component {
 			user,
 		));
 
-		this.log('NOTIFY', `${remains} updates remains`);
+		this.log('notify', `${remains} updates remains`);
 
 		return Promise.all(promises);
 	}

@@ -6,9 +6,7 @@ module.exports = class Component {
 
 	log(type, message) {
         const now = new Date().toJSON();
-        const msg =`${now} [${type}] ${message}`;
- 
-		console.log(msg);
+        const msg =`${now} [${type.toUpperCase()}] ${message}`;
         this.container.logStream.write(`${msg}\n`);
 	}
 
