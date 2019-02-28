@@ -1,5 +1,7 @@
 CREATE TABLE updates (
-	update_id serial PRIMARY KEY,
+	id serial PRIMARY KEY,
+	update_id integer,
+	channel text,
 	poster text not null,
 	is_posted bool DEFAULT false,
 	file_id text not null,
@@ -12,6 +14,7 @@ CREATE TABLE updates (
 CREATE TABLE reactions (
 	id serial PRIMARY KEY,
 	update_id text not null,
+	channel text,
 	message_id integer not null,
 	reaction text not null,
 	username text,

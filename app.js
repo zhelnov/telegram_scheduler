@@ -9,6 +9,7 @@ class App {
  
 		this.ioc = [
 			'Storage',
+			'TelegramApi',
 			'Telegram',
 			'Scheduler',
 		].reduce((ioc, comp) => {

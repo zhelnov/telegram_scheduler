@@ -18,4 +18,41 @@ module.exports = class Component {
 		return this.container.config;
 	}
 
+	getLargestImgId(ids) {
+		return ids.reduce((acc, { file_id, file_size }) => {
+			if (file_size > acc.max) {
+				return { file: file_id, max: file_size };
+			}
+			return acc;
+		}, { max: 0, file: null }).file;
+	}
+
+	getReactionLayout(likes, dislikes, channel) {
+		const { like, dislike } = this.getChannelConfig(channel);
+
+		if (!like) {
+			return null;
+		}
+		return JSON.stringify({
+			inline_keyboard: [[
+				{
+					text: `${like} ${likes || ''}`,
+					callback_data: 'like',
+				},
+				{
+					text: `${dislike} ${dislikes || ''}`,
+					callback_data: 'dislike',
+				}
+			]]
+		});
+	}
+
+	getChannelConfig(channel) {
+		return this.config.channels.find(({ chatId }) => chatId === channel);
+	}
+
+	findChannelByPoster(user) {
+		return this.config.channels.find(({ poster }) => poster === user);
+	}
+
 };

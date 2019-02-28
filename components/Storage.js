@@ -11,11 +11,6 @@ module.exports = class Storage extends Component {
         this.postgres.connect();
 	}
 
-	async getUpdateId() {
-		const [{ max }] = await this.query(Knex('updates').max('update_id'));
-        return max;
-	}
-
     async getVar(name) {
         const [{ value }] = await this.query(
             Knex('variables').select('value').where({ name }),
@@ -27,19 +22,19 @@ module.exports = class Storage extends Component {
         return this.query(Knex('variables').update({ value }).where({ name }));
     }
 
-    async saveUpdate({ update_id, poster, file_id, update, source, date }) {
+    async saveUpdate({ update_id, poster, file_id, update, source, date, channel }) {
         const q = Knex('updates').insert({
-            update_id, poster, file_id, update, source,
+            update_id, poster, file_id, update, source, channel,
             post_date: Knex.raw(`to_timestamp(${date})`),
         });
 
         return this.query(q);
     }
 
-    async getNextPhotos(amount) {
+    async getNextPhotos(channel, amount) {
         const baseQuery = Knex('updates')
             .select('update_id', 'file_id')
-            .where({ is_posted: false });
+            .where({ is_posted: false, channel });
 
         if (!amount) {
             return this.query(baseQuery.limit(1));
@@ -48,24 +43,24 @@ module.exports = class Storage extends Component {
         return this.query(baseQuery.limit(amount).orderBy('update_id', 'desc'));
     }
 
-    async getUnpostedCount() {
+    async getUnpostedCount(channel) {
         const [{ count }] = await this.query(
-            Knex('updates').count('update_id').where({ is_posted: false }),
+            Knex('updates').count('update_id').where({ is_posted: false, channel }),
         );
         return count;
     }
 
-    async setPosted(update_id, message_id) {
+    async setPosted(channel, update_id, message_id) {
         return this.query(Knex('updates')
             .where({ update_id })
-            .update({ is_posted: true, message_id })
+            .update({ is_posted: true, message_id, channel })
         );
     }
 
-    async getReactions(message_id) {
+    async getReactions(message_id, channel) {
         const result = await this.query(Knex('reactions')
             .select(Knex.raw('reaction, count(*) as count'))
-            .where({ message_id, is_dropped: false })
+            .where({ message_id, channel, is_dropped: false })
             .groupBy('reaction')
         );
 
@@ -76,8 +71,8 @@ module.exports = class Storage extends Component {
     }
 
     async setReaction(params) {
-        const { update_id, message_id, reaction, username, user_id } = params;
-        const where = { message_id, user_id };
+        const { update_id, message_id, reaction, username, user_id, channel } = params;
+        const where = { message_id, user_id, channel };
         const changes = {
             reaction_time: Knex.raw('current_timestamp'),
             is_dropped: false,
