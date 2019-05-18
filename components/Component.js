@@ -52,7 +52,7 @@ module.exports = class Component {
 	}
 
 	findChannelByPoster(user) {
-		return this.config.channels.find(({ poster }) => poster === user);
+		return this.config.channels.find(({ posters }) => posters.includes(user));
 	}
 
 };

@@ -6,6 +6,7 @@ module.exports = class Scheduler extends Component {
 	init() {
 		this.jobs = this.config.channels.reduce(
 			(jobs, { singleSchedule, albumSchedule, ...channelConf }) => {
+				const { chatId } = channelConf;
 				jobs[chatId] = {};
 				if (singleSchedule) {
 					jobs[chatId].singleJob = NodeSchedule.scheduleJob(
@@ -34,7 +35,7 @@ module.exports = class Scheduler extends Component {
 		return out.filter(Boolean).join('\n');
 	}
 
-	async doAlbum({ chat_id, notifyOnRemains, poster }) {
+	async doAlbum({ chatId: chat_id, notifyOnRemains, posters }) {
 		const photos = await this.ioc.Storage.getNextPhotos(chat_id, 5);
 		const { ok, result, description } = await this.ioc.TelegramApi.for(chat_id).sendMediaGroup({
 			media: JSON.stringify(photos.map(({ file_id }) => ({
@@ -48,14 +49,14 @@ module.exports = class Scheduler extends Component {
 				await this.ioc.Storage.setPosted(chat_id, update_id, result.message_id);
 			}
 			if (notifyOnRemains) {
-				await this.lackUpdatesNotify(chat_id, notifyOnRemains, poster);
+				await this.lackUpdatesNotify(chat_id, notifyOnRemains, posters);
 			}
 		} else {
 			this.log('posting error', description);
 		}
 	}
 
-	async doPost({ chat_id, notifyOnRemains, poster }) {
+	async doPost({ chatId: chat_id, notifyOnRemains, posters }) {
 		const [msg] = await this.ioc.Storage.getNextPhotos(chat_id);
 
 		if (!msg) {
@@ -76,14 +77,14 @@ module.exports = class Scheduler extends Component {
 		if (ok) {
 			await this.ioc.Storage.setPosted(chat_id, msg.update_id, result.message_id);
 			if (notifyOnRemains) {
-				await this.lackUpdatesNotify(chat_id, notifyOnRemains, poster);
+				await this.lackUpdatesNotify(chat_id, notifyOnRemains, posters);
 			}
 		} else {
 			this.log('posting error', `update_id ${msg.update_id} error ${description}`);
 		}
 	}
 
-	async lackUpdatesNotify(chat_id, notifyOnRemains, userToNotify) {
+	async lackUpdatesNotify(chat_id, notifyOnRemains, usersToNotify) {
 		const remains = await this.ioc.Storage.getUnpostedCount(chat_id);
 
 		if (remains > notifyOnRemains) {
@@ -91,9 +92,12 @@ module.exports = class Scheduler extends Component {
 		}
 		this.log('notify', `${remains} updates remains`);
 
-		return this.ioc.TelegramApi.for(userToNotify).sendMessage({
-			text: `There is only ${remains} updates in queue!`,
-		});
+		return Promise.all(usersToNotify.map(user => this.ioc.TelegramApi
+			.for(userToNotify)
+			.sendMessage({
+				text: `There is only ${remains} updates in queue!`,
+			}),
+		));
 	}
 	
 };
