@@ -88,7 +88,7 @@ module.exports = class Telegram extends Component {
 				});
 				break;
 			case 'imm':
-				await this.ioc.Scheduler.doPost(this.findChannelByPoster(id).chatId);
+				await this.ioc.Scheduler.doPost(this.findChannelByPoster(id));
 				break;
 			}
 		}

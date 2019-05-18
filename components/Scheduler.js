@@ -5,16 +5,16 @@ module.exports = class Scheduler extends Component {
 
 	init() {
 		this.jobs = this.config.channels.reduce(
-			(jobs, { chatId, singleSchedule, albumSchedule }) => {
+			(jobs, { singleSchedule, albumSchedule, ...channelConf }) => {
 				jobs[chatId] = {};
 				if (singleSchedule) {
 					jobs[chatId].singleJob = NodeSchedule.scheduleJob(
-						singleSchedule, this.doPost.bind(this, chatId),
+						singleSchedule, this.doPost.bind(this, channelConf),
 					);
 				}
 				if (albumSchedule) {
 					jobs[chatId].albumJob = NodeSchedule.scheduleJob(
-						albumSchedule, this.doAlbum.bind(this, chatId),
+						albumSchedule, this.doAlbum.bind(this, channelConf),
 					);
 				}
 				return jobs;
@@ -34,7 +34,7 @@ module.exports = class Scheduler extends Component {
 		return out.filter(Boolean).join('\n');
 	}
 
-	async doAlbum(chat_id) {
+	async doAlbum({ chat_id, notifyOnRemains, poster }) {
 		const photos = await this.ioc.Storage.getNextPhotos(chat_id, 5);
 		const { ok, result, description } = await this.ioc.TelegramApi.for(chat_id).sendMediaGroup({
 			media: JSON.stringify(photos.map(({ file_id }) => ({
@@ -47,13 +47,15 @@ module.exports = class Scheduler extends Component {
 			for (const { update_id } of photos) {
 				await this.ioc.Storage.setPosted(chat_id, update_id, result.message_id);
 			}
-			await this.lackUpdatesNotify(chat_id);
+			if (notifyOnRemains) {
+				await this.lackUpdatesNotify(chat_id, notifyOnRemains, poster);
+			}
 		} else {
 			this.log('posting error', description);
 		}
 	}
 
-	async doPost(chat_id) {
+	async doPost({ chat_id, notifyOnRemains, poster }) {
 		const [msg] = await this.ioc.Storage.getNextPhotos(chat_id);
 
 		if (!msg) {
@@ -73,29 +75,25 @@ module.exports = class Scheduler extends Component {
 
 		if (ok) {
 			await this.ioc.Storage.setPosted(chat_id, msg.update_id, result.message_id);
-			await this.lackUpdatesNotify(chat_id);
+			if (notifyOnRemains) {
+				await this.lackUpdatesNotify(chat_id, notifyOnRemains, poster);
+			}
 		} else {
 			this.log('posting error', `update_id ${msg.update_id} error ${description}`);
 		}
 	}
 
-	async lackUpdatesNotify(chat_id) {
+	async lackUpdatesNotify(chat_id, notifyOnRemains, userToNotify) {
 		const remains = await this.ioc.Storage.getUnpostedCount(chat_id);
 
-		if (remains > this.config.notify.onCount) {
+		if (remains > notifyOnRemains) {
 			return;
 		}
-
-		const { usersToNotify } = this.config.notify;
-		const promises = usersToNotify.map(async user => {
-			return this.ioc.TelegramApi.for(user).sendMessage({
-				text: `There is only ${remains} updates in queue!`,
-			});
-		});
-
 		this.log('notify', `${remains} updates remains`);
 
-		return Promise.all(promises);
+		return this.ioc.TelegramApi.for(userToNotify).sendMessage({
+			text: `There is only ${remains} updates in queue!`,
+		});
 	}
 	
 };
