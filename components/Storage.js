@@ -6,10 +6,10 @@ const Component = require('./Component');
 
 module.exports = class Storage extends Component {
 
-	async init() {
+    async init() {
         this.postgres = new Postgres(this.config.postgres);
         this.postgres.connect();
-	}
+    }
 
     async getVar(name) {
         const [{ value }] = await this.query(
@@ -37,7 +37,7 @@ module.exports = class Storage extends Component {
             .where({ is_posted: false, channel });
 
         if (!amount) {
-            return this.query(baseQuery.limit(1));
+            return this.query(baseQuery.limit(1).orderBy('update_id', 'asc'));
         }
 
         return this.query(baseQuery.limit(amount).orderBy('update_id', 'desc'));
