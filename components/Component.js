@@ -5,9 +5,9 @@ module.exports = class Component {
 	}
 
 	log(type, message) {
-        const now = new Date().toJSON();
-        const msg =`${now} [${type.toUpperCase()}] ${message}`;
-        this.container.logStream.write(`${msg}\n`);
+		const now = new Date().toJSON();
+		const msg =`${now} [${type.toUpperCase()}] ${message}`;
+		this.container.logStream.write(`${msg}\n`);
 	}
 
 	get ioc() {

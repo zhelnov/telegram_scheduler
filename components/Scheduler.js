@@ -22,6 +22,7 @@ module.exports = class Scheduler extends Component {
 			},
 			{},
 		);
+		this.log('init', `telegram_scheduler started successfully`);
 	}
 
 	async getStat(from) {
@@ -58,11 +59,6 @@ module.exports = class Scheduler extends Component {
 
 	async doPost({ chatId: chat_id, notifyOnRemains, posters }) {
 		const [msg] = await this.ioc.Storage.getNextPhotos(chat_id);
-
-		if (!msg) {
-			return this.log('empty', 'No photos to post!');
-		}
-
 		const sendPayload = {
 			photo: msg.file_id,
 			reply_markup: this.getReactionLayout(null, null, chat_id),
