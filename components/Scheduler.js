@@ -59,6 +59,12 @@ module.exports = class Scheduler extends Component {
 
 	async doPost({ chatId: chat_id, notifyOnRemains, posters }) {
 		const [msg] = await this.ioc.Storage.getNextPhotos(chat_id);
+
+		if (!msg) {
+			this.log('posting error', `received undefined next file from db by chat_id ${chat_id}`);
+			return;
+		}
+
 		const sendPayload = {
 			photo: msg.file_id,
 			reply_markup: this.getReactionLayout(null, null, chat_id),
@@ -89,7 +95,7 @@ module.exports = class Scheduler extends Component {
 		this.log('notify', `${remains} updates remains`);
 
 		return Promise.all(usersToNotify.map(user => this.ioc.TelegramApi
-			.for(userToNotify)
+			.for(user)
 			.sendMessage({
 				text: `There is only ${remains} updates in queue!`,
 			}),
